@@ -34,21 +34,22 @@ type HabitTags struct {
 	CreatedAt time.Time
 }
 
-type PostgresWorkoutStore struct {
+type PostgresHabitStore struct {
 	db *sql.DB
 }
 
-func NewPostgresWorkoutStore(db *sql.DB) *PostgresWorkoutStore {
-	return &PostgresWorkoutStore{db: db}
+func NewPostgresHabitStore(db *sql.DB) *PostgresHabitStore {
+	return &PostgresHabitStore{db: db}
 }
 
 type HabitStore interface {
 	CreateHabit(*Habit) (*Habit, error)
 	GetHabitByID(id uuid.UUID) (*Habit, error)
+	GetHabits() ([]*Habit, error)
 	// GetHabits() ([]*Habit, error)
 }
 
-func (pg *PostgresWorkoutStore) CreateHabit(habit *Habit) (*Habit, error) {
+func (pg *PostgresHabitStore) CreateHabit(habit *Habit) (*Habit, error) {
 	habit.ID = uuid.New()
 
 	// Start a database transaction.
@@ -78,7 +79,7 @@ func (pg *PostgresWorkoutStore) CreateHabit(habit *Habit) (*Habit, error) {
 	return habit, nil
 }
 
-func (pg *PostgresWorkoutStore) GetHabitByID(id uuid.UUID) (*Habit, error) {
+func (pg *PostgresHabitStore) GetHabitByID(id uuid.UUID) (*Habit, error) {
 	habit := &Habit{}
 
 	query := `
@@ -98,18 +99,49 @@ func (pg *PostgresWorkoutStore) GetHabitByID(id uuid.UUID) (*Habit, error) {
 	return habit, nil
 }
 
-// func (pg *PostgresWorkoutStore) GetHabits() []*Habit, error {
+func (pg *PostgresHabitStore) GetHabits() ([]*Habit, error) {
+	query := `
+		SELECT id, name, description, frequency, target_count, is_active, created_at, updated_at
+		FROM habits
+		ORDER BY name`
 
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var habits []*Habit
+	for rows.Next() {
+		habit := &Habit{}
+		err := rows.Scan(&habit.ID, &habit.Name, &habit.Description, &habit.Frequency, &habit.TargetCount, &habit.IsActive, &habit.CreatedAt, &habit.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		habits = append(habits, habit)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return habits, nil
+}
+
+// func (pg *PostgresWorkoutStore) UpdateHabit(habit *Habit) error {
+// 	tx, err := pg.db.Begin()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer tx.Rollback()
+
+// 	query := ``
 // }
 
-func (pg *PostgresWorkoutStore) UpdateHabit(habit *Habit) error {
+func (pg *PostgresHabitStore) DeleteHabit(id int64) error {
 	return nil
 }
 
-func (pg *PostgresWorkoutStore) DeleteHabit(id int64) error {
-	return nil
-}
-
-func (pg *PostgresWorkoutStore) GetHabitOwner(habitID int64) (int, error) {
+func (pg *PostgresHabitStore) GetHabitOwner(habitID int64) (int, error) {
 	return 0, nil
 }

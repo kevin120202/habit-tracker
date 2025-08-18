@@ -22,10 +22,6 @@ func NewHabitHandler(habitStore store.HabitStore, logger *log.Logger) *HabitHand
 	}
 }
 
-func (hh *HabitHandler) HandleGetHabits(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "get habits\n")
-}
-
 func (hh *HabitHandler) HandleGetHabitByID(w http.ResponseWriter, r *http.Request) {
 	habitID, err := utils.ReadIDParam(r)
 	if err != nil {
@@ -61,6 +57,17 @@ func (hh *HabitHandler) HandleCreateHabit(w http.ResponseWriter, r *http.Request
 	}
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"habit": createdHabit})
+}
+
+func (hh *HabitHandler) HandleGetHabits(w http.ResponseWriter, r *http.Request) {
+	habits, err := hh.habitStore.GetHabits()
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabits: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to retrieve habits"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"habits": habits})
 }
 
 func (hh *HabitHandler) HandleUpdateHabitByID(w http.ResponseWriter, r *http.Request) {

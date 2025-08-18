@@ -15,6 +15,7 @@ import (
 type Application struct {
 	Logger       *log.Logger
 	HabitHandler *api.HabitHandler
+	TagHandler   *api.TagHandler
 	DB           *sql.DB
 }
 
@@ -31,13 +32,16 @@ func NewApplication() (*Application, error) {
 
 	logger := log.New(os.Stdout, "", log.Ldate|(log.Ltime))
 
-	habitStore := store.NewPostgresWorkoutStore(pgDB)
+	habitStore := store.NewPostgresHabitStore(pgDB)
+	tagStore := store.NewPostgresTagStore(pgDB)
 
 	habitHandler := api.NewHabitHandler(habitStore, logger)
+	tagHandler := api.NewTagHandler(tagStore, logger)
 
 	app := &Application{
 		Logger:       logger,
 		HabitHandler: habitHandler,
+		TagHandler:   tagHandler,
 		DB:           pgDB,
 	}
 
