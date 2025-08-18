@@ -9,8 +9,12 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Get("/health", app.HealthCheck)
+
+	r.Get("/habits", app.HabitHandler.HandleGetHabits)
 	r.Get("/habits/{id}", app.HabitHandler.HandleGetHabitByID)
 	r.Post("/habits", app.HabitHandler.HandleCreateHabit)
+	r.Put("/habits/{id}", app.HabitHandler.HandleUpdateHabitByID)
+	r.Delete("/habits/{id}", app.HabitHandler.HandleDeleteHabitByID)
 
 	return r
 }
