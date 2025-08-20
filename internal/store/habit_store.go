@@ -24,14 +24,12 @@ type HabitEntry struct {
 	HabitID    uuid.UUID
 	Completion time.Time
 	Note       string
-	CreatedAt  time.Time
 }
 
 type HabitTags struct {
-	ID        uuid.UUID
-	HabitID   uuid.UUID
-	TagID     uuid.UUID
-	CreatedAt time.Time
+	ID      uuid.UUID
+	HabitID uuid.UUID
+	TagID   uuid.UUID
 }
 
 type PostgresHabitStore struct {
@@ -48,6 +46,7 @@ type HabitStore interface {
 	GetHabits() ([]*Habit, error)
 	UpdateHabit(*Habit) error
 	DeleteHabit(id uuid.UUID) error
+	LogHabit(*HabitEntry) (*HabitEntry, error)
 }
 
 func (pg *PostgresHabitStore) CreateHabit(habit *Habit) (*Habit, error) {
@@ -177,6 +176,32 @@ func (pg *PostgresHabitStore) DeleteHabit(id uuid.UUID) error {
 	return nil
 }
 
-func (pg *PostgresHabitStore) GetHabitOwner(habitID int64) (int, error) {
-	return 0, nil
+// func (pg *PostgresHabitStore) GetHabitOwner(habitID int64) (int, error) {
+// 	return 0, nil
+// }
+
+func (pg *PostgresHabitStore) LogHabit(habitEntry *HabitEntry) (*HabitEntry, error) {
+	tx, err := pg.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	habitEntry.ID = uuid.New()
+	query := `
+		INSERT INTO habit_entries (id, habit_id, completion_date, note)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, habit_id, completion_date, note`
+
+	err = tx.QueryRow(query, habitEntry.ID, habitEntry.HabitID, time.Now(), habitEntry.Note).Scan(&habitEntry.ID, &habitEntry.HabitID, &habitEntry.Completion, &habitEntry.Note)
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+
+	return habitEntry, nil
 }

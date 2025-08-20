@@ -151,3 +151,78 @@ func (hh *HabitHandler) HandleDeleteHabitByID(w http.ResponseWriter, r *http.Req
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "habit deleted successfully"})
 }
+
+func (hh *HabitHandler) HandleLogHabitCompletions(w http.ResponseWriter, r *http.Request) {
+	habitID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readIDParam: %v", err)
+		return
+	}
+
+	var habitEntry store.HabitEntry
+	habitEntry.HabitID = habitID
+
+	err = json.NewDecoder(r.Body).Decode(&habitEntry)
+	if err != nil {
+		hh.logger.Printf("ERROR: decodingCreateHabitEntry: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request sent"})
+		return
+	}
+
+	// Verify habit belongs to user
+
+	createdHabitEntry, err := hh.habitStore.LogHabit(&habitEntry)
+	if err != nil {
+		hh.logger.Printf("ERROR: logHabit: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to create habit entry"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"habitEntry": createdHabitEntry})
+}
+
+func (hh *HabitHandler) HandleCompleteHabit(w http.ResponseWriter, r *http.Request) {
+	habitID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readIDParam: %v", err)
+		return
+	}
+
+	existingHabit, err := hh.habitStore.GetHabitByID(habitID)
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabitByID: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
+		return
+	}
+
+	if existingHabit == nil {
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "habit not found"})
+		return
+	}
+
+	if !existingHabit.IsActive {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "cannot complete an inactive habit"})
+		return
+	}
+
+	var completedHabitEntry store.HabitEntry
+	completedHabitEntry.HabitID = habitID
+
+	err = json.NewDecoder(r.Body).Decode(&completedHabitEntry)
+	if err != nil {
+		hh.logger.Printf("ERROR: decodingCreateHabitEntry: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request sent"})
+		return
+	}
+
+	// Verify habit belongs to user
+
+	createdCompletedHabitEntry, err := hh.habitStore.LogHabit(&completedHabitEntry)
+	if err != nil {
+		hh.logger.Printf("ERROR: logHabit: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to create complete habit entry"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"completedHabitEntry": createdCompletedHabitEntry, "message": "Habit completed successfully"})
+}
