@@ -46,31 +46,29 @@ type HabitStore interface {
 	CreateHabit(*Habit) (*Habit, error)
 	GetHabitByID(id uuid.UUID) (*Habit, error)
 	GetHabits() ([]*Habit, error)
-	// GetHabits() ([]*Habit, error)
+	UpdateHabit(*Habit) error
+	DeleteHabit(id uuid.UUID) error
 }
 
 func (pg *PostgresHabitStore) CreateHabit(habit *Habit) (*Habit, error) {
 	habit.ID = uuid.New()
 
-	// Start a database transaction.
 	tx, err := pg.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback() // Ensure that the transaction is rolled back if anything fails.
+	defer tx.Rollback()
 
 	query := `
 		INSERT INTO habits (id, name, description, frequency, target_count, is_active)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id`
 
-	// Execute the query and scan the returned workout ID into the workout struct.
 	err = tx.QueryRow(query, habit.ID, habit.Name, habit.Description, habit.Frequency, habit.TargetCount, habit.IsActive).Scan(&habit.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Commit the transaction to save all changes to the database.
 	err = tx.Commit()
 	if err != nil {
 		return nil, err
@@ -83,11 +81,11 @@ func (pg *PostgresHabitStore) GetHabitByID(id uuid.UUID) (*Habit, error) {
 	habit := &Habit{}
 
 	query := `
-		SELECT id, name, description, frequency, target_count, is_active
+		SELECT id, name, description, frequency, target_count, is_active, created_at, updated_at
 		FROM habits
 		WHERE id = $1`
 
-	err := pg.db.QueryRow(query, id).Scan(&habit.ID, &habit.Name, &habit.Description, &habit.Frequency, &habit.TargetCount, &habit.IsActive)
+	err := pg.db.QueryRow(query, id).Scan(&habit.ID, &habit.Name, &habit.Description, &habit.Frequency, &habit.TargetCount, &habit.IsActive, &habit.CreatedAt, &habit.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -128,17 +126,54 @@ func (pg *PostgresHabitStore) GetHabits() ([]*Habit, error) {
 	return habits, nil
 }
 
-// func (pg *PostgresWorkoutStore) UpdateHabit(habit *Habit) error {
-// 	tx, err := pg.db.Begin()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer tx.Rollback()
+func (pg *PostgresHabitStore) UpdateHabit(habit *Habit) error {
+	tx, err := pg.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-// 	query := ``
-// }
+	query := `UPDATE habits
+		SET name = $1, description = $2, frequency = $3, target_count = $4, is_active = $5, updated_at = $6
+		WHERE id = $7
+	`
 
-func (pg *PostgresHabitStore) DeleteHabit(id int64) error {
+	result, err := tx.Exec(query, habit.Name, habit.Description, habit.Frequency, habit.TargetCount, habit.IsActive, time.Now(), habit.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return tx.Commit()
+}
+
+func (pg *PostgresHabitStore) DeleteHabit(id uuid.UUID) error {
+	query := `
+		DELETE from habits
+		WHERE id = $1`
+
+	result, err := pg.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
 	return nil
 }
 
