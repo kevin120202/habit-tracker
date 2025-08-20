@@ -47,6 +47,9 @@ type HabitStore interface {
 	UpdateHabit(*Habit) error
 	DeleteHabit(id uuid.UUID) error
 	LogHabit(*HabitEntry) (*HabitEntry, error)
+	AddTagToHabit(habitID, tagID uuid.UUID) error
+	RemoveTagFromHabit(habitID, tagID uuid.UUID) error
+	GetHabitsByTag(tagID uuid.UUID) ([]*Habit, error)
 }
 
 func (pg *PostgresHabitStore) CreateHabit(habit *Habit) (*Habit, error) {
@@ -204,4 +207,69 @@ func (pg *PostgresHabitStore) LogHabit(habitEntry *HabitEntry) (*HabitEntry, err
 	}
 
 	return habitEntry, nil
+}
+
+func (pg *PostgresHabitStore) AddTagToHabit(habitID, tagID uuid.UUID) error {
+	query := `
+        INSERT INTO habit_tags (id, habit_id, tag_id)
+        VALUES ($1, $2, $3)`
+
+	_, err := pg.db.Exec(query, uuid.New(), habitID, tagID)
+	return err
+}
+
+func (pg *PostgresHabitStore) RemoveTagFromHabit(habitID, tagID uuid.UUID) error {
+	query := `
+		DELETE FROM habit_tags 
+		WHERE habit_id = $1 AND tag_id = $2`
+
+	result, err := pg.db.Exec(query, habitID, tagID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (pg *PostgresHabitStore) GetHabitsByTag(tagID uuid.UUID) ([]*Habit, error) {
+	query := `
+		SELECT DISTINCT h.id, h.name, h.description, h.frequency, h.target_count, h.is_active, h.created_at, h.updated_at
+		FROM habits h
+		INNER JOIN habit_tags ht ON h.id = ht.habit_id
+		WHERE ht.tag_id = $1
+		ORDER BY h.name`
+
+	rows, err := pg.db.Query(query, tagID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var habits []*Habit
+	for rows.Next() {
+		habit := &Habit{}
+		err := rows.Scan(
+			&habit.ID, &habit.Name, &habit.Description, &habit.Frequency,
+			&habit.TargetCount, &habit.IsActive, &habit.CreatedAt, &habit.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		habits = append(habits, habit)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return habits, nil
 }

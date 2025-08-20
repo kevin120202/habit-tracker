@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/kevin120202/habit-tracker/internal/store"
 	"github.com/kevin120202/habit-tracker/internal/utils"
 )
@@ -225,4 +226,107 @@ func (hh *HabitHandler) HandleCompleteHabit(w http.ResponseWriter, r *http.Reque
 	}
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"completedHabitEntry": createdCompletedHabitEntry, "message": "Habit completed successfully"})
+}
+
+func (hh *HabitHandler) HandleCreateTagToHabit(w http.ResponseWriter, r *http.Request) {
+	habitID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readHabitIDParam: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid habit id"})
+		return
+	}
+
+	var requestBody struct {
+		TagID uuid.UUID `json:"tag_id"`
+	}
+
+	err = json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		hh.logger.Printf("ERROR: decodingAddTagRequest: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid request payload"})
+		return
+	}
+
+	// Verify habit exists
+	existingHabit, err := hh.habitStore.GetHabitByID(habitID)
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabitByID: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
+		return
+	}
+
+	if existingHabit == nil {
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "habit not found"})
+		return
+	}
+
+	err = hh.habitStore.AddTagToHabit(habitID, requestBody.TagID)
+	if err != nil {
+		hh.logger.Printf("ERROR: addTagToHabit: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to add tag to habit"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "tag added to habit successfully"})
+}
+
+func (hh *HabitHandler) HandleDeleteTagFromHabit(w http.ResponseWriter, r *http.Request) {
+	habitID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readHabitIDParam: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid habit id"})
+		return
+	}
+
+	tagID, err := utils.ReadTagIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readTagIDParam: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid tag id"})
+		return
+	}
+
+	// Verify habit exists
+	existingHabit, err := hh.habitStore.GetHabitByID(habitID)
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabitByID: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
+		return
+	}
+
+	if existingHabit == nil {
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "habit not found"})
+		return
+	}
+
+	err = hh.habitStore.RemoveTagFromHabit(habitID, tagID)
+	if err == sql.ErrNoRows {
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "tag not found on habit"})
+		return
+	}
+
+	if err != nil {
+		hh.logger.Printf("ERROR: removeTagFromHabit: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to remove tag from habit"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "tag removed from habit successfully"})
+}
+
+func (hh *HabitHandler) HandleGetHabitsByTag(w http.ResponseWriter, r *http.Request) {
+	tagID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readTagIDParam: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid tag id"})
+		return
+	}
+
+	habits, err := hh.habitStore.GetHabitsByTag(tagID)
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabitsByTag: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "failed to retrieve habits by tag"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"habits": habits})
 }

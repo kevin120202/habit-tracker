@@ -54,3 +54,19 @@ func ReadIDParam(r *http.Request) (uuid.UUID, error) {
 
 	return id, nil
 }
+
+func ReadTagIDParam(r *http.Request) (uuid.UUID, error) {
+	tagIDParam := chi.URLParam(r, "tagID")
+
+	if tagIDParam == "" {
+		return uuid.Nil, errors.New("invalid tag id parameter")
+	}
+
+	// Convert the "tagID" parameter from string to UUID
+	tagID, err := uuid.Parse(tagIDParam)
+	if err != nil {
+		return uuid.Nil, errors.New("invalid tag id parameter type")
+	}
+
+	return tagID, nil
+}
