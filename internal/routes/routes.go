@@ -18,6 +18,9 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 	r.Post("/tags", app.TagHandler.HandleCreateTag)
 	r.Get("/tags", app.TagHandler.HandleGetTags)
+	r.Get("/tags/{id}", app.TagHandler.HandleGetTagByID)
+	r.Put("/tags/{id}", app.TagHandler.HandleUpdateTagByID)
+	r.Delete("/tags/{id}", app.TagHandler.HandleDeleteTagByID)
 
 	return r
 }

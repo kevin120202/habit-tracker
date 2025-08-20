@@ -27,7 +27,59 @@ func NewPostgresTagStore(db *sql.DB) *PostgresTagStore {
 
 type TagStore interface {
 	CreateTag(*Tag) (*Tag, error)
+	GetTagByID(id uuid.UUID) (*Tag, error)
 	GetTags() ([]*Tag, error)
+	UpdateTag(*Tag) error
+	DeleteTag(id uuid.UUID) error
+}
+
+func (pg *PostgresTagStore) CreateTag(tag *Tag) (*Tag, error) {
+	tx, err := pg.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	tag.ID = uuid.New()
+	query := `
+		INSERT INTO tags (id, name, color)
+		VALUES ($1, $2, $3)
+		RETURNING id`
+
+	err = tx.QueryRow(query, tag.ID, tag.Name, tag.Color).Scan(&tag.ID)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			return nil, errors.New("tag with this name already exists")
+		}
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+
+	return tag, nil
+}
+
+func (pg *PostgresTagStore) GetTagByID(id uuid.UUID) (*Tag, error) {
+	tag := &Tag{}
+
+	query := `
+		SELECT id, name, color, created_at, updated_at
+		FROM tags
+		WHERE id = $1`
+
+	err := pg.db.QueryRow(query, id).Scan(&tag.ID, &tag.Name, &tag.Color, &tag.CreatedAt, &tag.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return tag, nil
 }
 
 func (pg *PostgresTagStore) GetTags() ([]*Tag, error) {
@@ -59,31 +111,53 @@ func (pg *PostgresTagStore) GetTags() ([]*Tag, error) {
 	return tags, nil
 }
 
-func (pg *PostgresTagStore) CreateTag(tag *Tag) (*Tag, error) {
+func (pg *PostgresTagStore) UpdateTag(tag *Tag) error {
 	tx, err := pg.db.Begin()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer tx.Rollback()
 
-	tag.ID = uuid.New()
+	query := `UPDATE tags
+		SET name = $1, color = $2, updated_at = $3
+		WHERE id = $4
+	`
+
+	result, err := tx.Exec(query, tag.Name, tag.Color, time.Now(), tag.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return tx.Commit()
+}
+
+func (pg *PostgresTagStore) DeleteTag(id uuid.UUID) error {
 	query := `
-		INSERT INTO tags (id, name, color)
-		VALUES ($1, $2, $3)
-		RETURNING id`
+		DELETE from tags
+		WHERE id = $1`
 
-	err = tx.QueryRow(query, tag.ID, tag.Name, tag.Color).Scan(&tag.ID)
+	result, err := pg.db.Exec(query, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-			return nil, errors.New("tag with this name already exists")
-		}
-		return nil, err
+		return err
 	}
 
-	err = tx.Commit()
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return tag, nil
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }

@@ -22,23 +22,6 @@ func NewHabitHandler(habitStore store.HabitStore, logger *log.Logger) *HabitHand
 	}
 }
 
-func (hh *HabitHandler) HandleGetHabitByID(w http.ResponseWriter, r *http.Request) {
-	habitID, err := utils.ReadIDParam(r)
-	if err != nil {
-		hh.logger.Printf("ERROR: readIDParam: %v", err)
-		return
-	}
-
-	habit, err := hh.habitStore.GetHabitByID(habitID)
-	if err != nil {
-		hh.logger.Printf("ERROR: getHabitByID: %v", err)
-		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"habit": habit})
-}
-
 func (hh *HabitHandler) HandleCreateHabit(w http.ResponseWriter, r *http.Request) {
 	var habit store.Habit
 
@@ -57,6 +40,23 @@ func (hh *HabitHandler) HandleCreateHabit(w http.ResponseWriter, r *http.Request
 	}
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"habit": createdHabit})
+}
+
+func (hh *HabitHandler) HandleGetHabitByID(w http.ResponseWriter, r *http.Request) {
+	habitID, err := utils.ReadIDParam(r)
+	if err != nil {
+		hh.logger.Printf("ERROR: readIDParam: %v", err)
+		return
+	}
+
+	habit, err := hh.habitStore.GetHabitByID(habitID)
+	if err != nil {
+		hh.logger.Printf("ERROR: getHabitByID: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "internal server error"})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"habit": habit})
 }
 
 func (hh *HabitHandler) HandleGetHabits(w http.ResponseWriter, r *http.Request) {
